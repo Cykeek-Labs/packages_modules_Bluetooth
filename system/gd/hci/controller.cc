@@ -1,4 +1,4 @@
-/*
+  /*
  * Copyright 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -539,18 +539,8 @@ struct Controller::impl {
 
   void le_set_event_mask(uint64_t le_event_mask) {
     std::unique_ptr<LeSetEventMaskBuilder> packet = LeSetEventMaskBuilder::Create(le_event_mask);
-    hci_->EnqueueCommand(
-        std::move(packet), module_.GetHandler()->BindOnceOn(this, &Controller::impl::check_le_set_event_mask_status));
-  }
-
-  void check_le_set_event_mask_status(CommandCompleteView view) {
-    ASSERT(view.IsValid());
-    auto status_view = LeSetEventMaskCompleteView::Create(view);
-    ASSERT(status_view.IsValid());
-    auto status = status_view.GetStatus();
-    if (status != ErrorCode::SUCCESS) {
-      LOG_WARN("Unexpected return status %s", ErrorCodeText(status).c_str());
-    }
+    hci_->EnqueueCommand(std::move(packet), module_.GetHandler()->BindOnceOn(
+                                                this, &Controller::impl::check_event_mask_status<LeSetEventMaskCompleteView>));
   }
 
   template <class T>
@@ -559,6 +549,15 @@ struct Controller::impl {
     auto status_view = T::Create(view);
     ASSERT(status_view.IsValid());
     ASSERT(status_view.GetStatus() == ErrorCode::SUCCESS);
+  }
+
+  template <class T>
+  void check_event_mask_status(CommandCompleteView view) {
+    ASSERT(view.IsValid());
+    auto status_view = T::Create(view);
+    ASSERT(status_view.IsValid());
+    ASSERT(status_view.GetStatus() == ErrorCode::SUCCESS ||
+           status_view.GetStatus() == ErrorCode::UNSUPPORTED_LMP_OR_LL_PARAMETER);
   }
 
 #define OP_CODE_MAPPING(name)                                                  \
@@ -797,9 +796,7 @@ struct Controller::impl {
       OP_CODE_MAPPING(LE_SET_DEFAULT_PERIODIC_ADVERTISING_SYNC_TRANSFER_PARAMETERS)
       OP_CODE_MAPPING(LE_GENERATE_DHKEY_COMMAND)
       OP_CODE_MAPPING(LE_MODIFY_SLEEP_CLOCK_ACCURACY)
-#ifndef DISABLE_LE_READ_BUFFER_SIZE_V2
-      OP_CODE_MAPPING(LE_READ_BUFFER_SIZE_V2)
-#endif
+      //OP_CODE_MAPPING(LE_READ_BUFFER_SIZE_V2)
       OP_CODE_MAPPING(LE_READ_ISO_TX_SYNC)
       OP_CODE_MAPPING(LE_SET_CIG_PARAMETERS)
       OP_CODE_MAPPING(LE_SET_CIG_PARAMETERS_TEST)
@@ -814,9 +811,7 @@ struct Controller::impl {
       OP_CODE_MAPPING(LE_REQUEST_PEER_SCA)
       OP_CODE_MAPPING(LE_SETUP_ISO_DATA_PATH)
       OP_CODE_MAPPING(LE_REMOVE_ISO_DATA_PATH)
-#ifndef DISABLE_LE_SET_HOST_FEATURE
-      OP_CODE_MAPPING(LE_SET_HOST_FEATURE)
-#endif
+      //OP_CODE_MAPPING(LE_SET_HOST_FEATURE)
       OP_CODE_MAPPING(LE_READ_ISO_LINK_QUALITY)
       OP_CODE_MAPPING(LE_ENHANCED_READ_TRANSMIT_POWER_LEVEL)
       OP_CODE_MAPPING(LE_READ_REMOTE_TRANSMIT_POWER_LEVEL)
@@ -830,16 +825,14 @@ struct Controller::impl {
       OP_CODE_MAPPING(CONFIGURE_DATA_PATH)
       OP_CODE_MAPPING(ENHANCED_FLUSH)
 
-#ifdef DISABLE_LE_READ_BUFFER_SIZE_V2
       case OpCode::LE_READ_BUFFER_SIZE_V2:
         LOG_DEBUG("unsupported command opcode: 0x%04x", (uint16_t)OpCode::LE_READ_BUFFER_SIZE_V2);
         return false;
-#endif
-#ifdef DISABLE_LE_SET_HOST_FEATURE
+        
       case OpCode::LE_SET_HOST_FEATURE:
         LOG_DEBUG("unsupported command opcode: 0x%04x", (uint16_t)OpCode::LE_SET_HOST_FEATURE);
         return false;
-#endif
+
 
       // deprecated
       case OpCode::ADD_SCO_CONNECTION:
@@ -1185,4 +1178,4 @@ std::string Controller::ToString() const {
   return "Controller";
 }
 }  // namespace hci
-}  // namespace bluetooth
+}  // namespace bluetooth                                               
